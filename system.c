@@ -84,8 +84,6 @@ int main(){
   for(int i =0;i<MAXSTUDENTS;i++){
     pthread_join(std_t[i],NULL);
   }
-
-// ===== PRINT ALL RESULTS =====
   printf("\n--- Submitted Results ---\n");
     for(int i = 0; i < resultCount; i++){
       printf("Student %d | Score: %.2f | Graded: %d\n",
