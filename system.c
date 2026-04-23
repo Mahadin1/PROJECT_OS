@@ -2,9 +2,18 @@
 #include<stdlib.h>
 #include<pthread.h>
 #include<time.h>
+#include<semaphore.h>
+#include<time.h>
 #include<string.h>
+#include<fcntl.h>
+#include<sys/stat.h>
+#include<sys/types.h>
 
 #define MAXSTUDENTS 5
+#define MAXEVALUATORLIMIT 2
+#define MAXEVALUATOR 4
+#define EXAMTIMELIMIT 3 
+#define MAXSTUDENTEXAMTIME 7
 
 // structures
 typedef struct {
@@ -16,13 +25,25 @@ typedef struct{
   int studentID;
   double score;
   int graded;
+  int timeOut;
+  double timeTaken;
 } Result;
 
 
 //Shared Values
+pthread_mutex_t resultLock;
+pthread_mutex_t submissionLock;
+pthread_mutex_t examLock;
+pthread_cond_t submissionCondition;
+sem_t gradingLimit;
 Result studentResults[MAXSTUDENTS];
 int resultCount = 0;
 pthread_mutex_t resultLock;
+Result submissionQueue[MAXSTUDENTS];
+int submissionCount = 0;
+int examOver = 0;
+int logFd;
+pthread_mutex_t logLock;
 
 // student thread
 void* std_thread(void* arg){
