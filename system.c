@@ -47,14 +47,19 @@ pthread_mutex_t logLock;
 
 // student thread
 void* std_thread(void* arg){
+
   Student s = *(Student *)arg;
-  printf("Student %d is Submitting the exam.\n",s.studentID);
-  pthread_mutex_lock(&resultLock);
-  studentResults[resultCount].studentID = s.studentID;
-  studentResults[resultCount].score = s.score;
-  studentResults[resultCount].graded = 0;
-  resultCount++;
-  pthread_mutex_unlock(&resultLock); 
+  char msg[100];
+  time_t startTime  = time(NULL);
+  sleep(rand() % MAXSTUDENTEXAMTIME);
+  time_t endTime = time(NULL);
+  double examtimetaken = difftime(endTime,startTime);
+  pthread_mutex_lock(&submissionLock);
+  submissionQueue[submissionCount].studentID = s.studentID;
+  submissionQueue[submissionCount].graded = 0;
+  submissionQueue[submissionCount].timeTaken = examtimetaken;
+  if(examtimetaken > EXAMTIMELIMIT){
+    submissionQueue[submissionCount].timeOut = 1;
 
   return NULL;
 }
