@@ -60,6 +60,7 @@ void* std_thread(void* arg){
   submissionQueue[submissionCount].timeTaken = examtimetaken;
   if(examtimetaken > EXAMTIMELIMIT){
     submissionQueue[submissionCount].timeOut = 1;
+  }
 
   return NULL;
 }
