@@ -64,7 +64,55 @@ void* std_thread(void* arg){
 
   return NULL;
 }
-
+void* eva_thread(void* arg){
+  Evaluator e = *(Evaluator *)arg;
+  int over;
+  char msg[100];
+  while(1){
+    pthread_mutex_lock(&submissionLock);
+    while(examOver == 0 && submissionCount == 0){ 
+    pthread_cond_wait(&submissionCondition,&submissionLock);
+    }
+    if(submissionCount ==0 && examOver == 1){
+    pthread_mutex_unlock(&submissionLock);
+    break;
+    } 
+    submissionCount--;
+    Result r = submissionQueue[submissionCount];
+    pthread_mutex_unlock(&submissionLock);
+    
+    snprintf(msg,sizeof(msg),"Evaluator %d is grading student %d\n",e.evaluatorID,r.studentID);
+    logEvent(msg);
+    if(r.timeOut == 1){
+      pthread_mutex_lock(&resultLock);
+      studentResults[resultCount].graded = 1;
+      studentResults[resultCount].studentID = r.studentID;
+      studentResults[resultCount].score = 0;
+      studentResults[resultCount].timeOut = r.timeOut;
+      studentResults[resultCount].timeTaken = r.timeTaken;
+      resultCount++;
+      pthread_mutex_unlock(&resultLock);
+      snprintf(msg,sizeof(msg),"Evalator %d did not evalute student (TIMEOUT) %d",e.evaluatorID,r.studentID);
+      logEvent(msg);
+    }else{
+    sem_wait(&gradingLimit);
+  sleep(2);
+  pthread_mutex_lock(&resultLock);
+  studentResults[resultCount].graded = 1;
+  studentResults[resultCount].studentID = r.studentID;
+  studentResults[resultCount].score = r.score;
+  studentResults[resultCount].timeOut = r.timeOut;
+  studentResults[resultCount].timeTaken = r.timeTaken;
+  // studentResults[e.studentID].score = (rand() % 100); 
+  resultCount++;
+  snprintf(msg,sizeof(msg),"Evalator %d evaluated student %d",e.evaluatorID,r.studentID);
+  logEvent(msg);
+  pthread_mutex_unlock(&resultLock);
+  sem_post(&gradingLimit);
+}
+}
+  return NULL;
+}
 int main(){
   srand(time(NULL));
   printf("System is Starting\n");
