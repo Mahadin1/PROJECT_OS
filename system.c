@@ -60,8 +60,23 @@ void* std_thread(void* arg){
   submissionQueue[submissionCount].timeTaken = examtimetaken;
   if(examtimetaken > EXAMTIMELIMIT){
     submissionQueue[submissionCount].timeOut = 1;
+    submissionQueue[submissionCount].score = 0; 
+    snprintf(msg,sizeof(msg), "Student %d TIMEOUT After %.1fs",s.studentID,examtimetaken);
+    logEvent(msg);
+    printf("%s\n",msg);
+    printf("Student Exam time out.\n");
   }
-
+  else{
+    submissionQueue[submissionCount].timeOut = 0;
+    submissionQueue[submissionCount].score = s.score;
+    snprintf(msg,sizeof(msg), "Student %d submitted the Exam in time %.1fs",s.studentID,examtimetaken);
+    logEvent(msg);
+    printf("%s\n",msg);
+  }
+  submissionCount++;
+  pthread_cond_signal(&submissionCondition);
+  pthread_mutex_unlock(&submissionLock); 
+  
   return NULL;
 }
 void* eva_thread(void* arg){
