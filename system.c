@@ -116,28 +116,58 @@ void* eva_thread(void* arg){
 int main(){
   srand(time(NULL));
   printf("System is Starting\n");
-// Initlializing all the data
+  pthread_mutex_init(&examLock,NULL);
   pthread_mutex_init(&resultLock,NULL);
+  pthread_mutex_init(&logLock,NULL);
+  sem_init(&gradingLimit,0,MAXEVALUATORLIMIT);
+  pthread_mutex_init(&submissionLock,NULL);
+  pthread_cond_init(&submissionCondition,NULL);
+
+  logFd = open("examRecords.txt", O_WRONLY | O_CREAT | O_APPEND , 0644);
+  if(logFd < 0){
+    printf("Error , File Open Failed\n");
+    return -1;
+  }
+
+  pthread_t autoSaveThread;
+  pthread_create(&autoSaveThread,NULL,autoSave,NULL);
 
 
   Student s[MAXSTUDENTS];
+  Evaluator e[MAXEVALUATOR];
   pthread_t std_t[MAXSTUDENTS];
+  pthread_t eva_t[MAXEVALUATOR];
 
 
 // Student working in main
   for(int i =0 ;i<MAXSTUDENTS;i++){
     s[i].studentID = i;
     s[i].score = ((rand() % 10000) / 100.00);
+    e[i].evaluatorID = i;
   }
 
   for(int i =0;i<MAXSTUDENTS;i++){
     pthread_create(&std_t[i],NULL,std_thread,&s[i]);
   }
 
+  for(int i =0;i<MAXEVALUATOR;i++){
+    pthread_create(&eva_t[i],NULL,eva_thread,&e[i]);
+  }
 
   for(int i =0;i<MAXSTUDENTS;i++){
     pthread_join(std_t[i],NULL);
   }
+  pthread_mutex_lock(&examLock);
+  examOver = 1;
+  pthread_mutex_unlock(&examLock);
+  pthread_cond_broadcast(&submissionCondition); 
+
+  for(int i =0;i<MAXEVALUATOR;i++){
+    pthread_join(eva_t[i],NULL);
+  }
+
+  autoSaveActive = 0;
+  pthread_join(autoSaveThread, NULL);
   printf("\n--- Submitted Results ---\n");
     for(int i = 0; i < resultCount; i++){
       printf("Student %d | Score: %.2f | Graded: %d\n",
