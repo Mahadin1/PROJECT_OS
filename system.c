@@ -45,6 +45,18 @@ int examOver = 0;
 int logFd;
 pthread_mutex_t logLock;
 
+void logEvent(char *msg){
+  time_t now = time(NULL);
+  struct tm *t = localtime(&now);
+  char buffer[32];
+  strftime(buffer, sizeof(buffer) , "%Y-%m-%d %H:%M:%S", t);
+
+  char logLine[256];
+  snprintf(logLine,sizeof(logLine),"|%s| %s\n",buffer,msg);
+  pthread_mutex_lock(&logLock);
+  write(logFd,logLine,strlen(logLine));
+  pthread_mutex_unlock(&logLock);
+}
 // student thread
 void* std_thread(void* arg){
 
