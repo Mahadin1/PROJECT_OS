@@ -237,6 +237,83 @@ void* autoSave(void *arg){
   }
   return NULL;
 }
+void genAnalytics(){
+  int passed = 0;
+  int failed = 0;
+  int cheated = 0;
+  int timedout = 0;
+  double highestscore = 0;
+  int highestID  = -1;
+  double lowest = 0;
+  double sumScore =0;
+  double scoreavg = 0;
+  int totalstd = 0;
+
+
+  for(int i =0;i<resultCount;i++){
+    if(studentResults[i].score > 0.0){
+      lowest = studentResults[i].score;
+      break;
+    }
+  }
+
+  for(int i =0;i<resultCount;i++){
+    if(studentResults[i].timeOut == 1){
+      timedout++;
+    }else if(studentResults[i].cheated == 1){
+      cheated++;
+    }else if(studentResults[i].score >= 50){
+      passed++;
+    }else{
+      failed++;
+    }
+
+    if(highestscore < studentResults[i].score){
+      highestID = studentResults[i].studentID;
+      highestscore = studentResults[i].score;
+    }
+    if(lowest > studentResults[i].score && studentResults[i].score > 0){
+      lowest = studentResults[i].score;
+    }
+    if(studentResults[i].timeOut == 0 && studentResults[i].cheated == 0) {
+     sumScore += studentResults[i].score;
+     totalstd++;
+    }
+  }
+
+  scoreavg = sumScore/totalstd;
+
+
+  printf(" ------ Exam Analytics ------\n");
+  printf("Total Students : %d\n",MAXSTUDENTS);
+  printf("Passed : %d\n",passed);
+  printf("Failed : %d\n",failed);
+  printf("Cheated : %d\n",cheated);
+  printf("TimeOUT : %d\n",timedout);
+  printf("Highes Score (STUDENT-ID, SCORE) : (%d , %.1f)\n",highestID,highestscore);
+  printf("Average Score : %.1f\n",scoreavg);
+  printf("Lowest Score : %.1f\n",lowest);
+
+  int fdAna = open("ExamAnalytics.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if(fdAna < 0){
+    printf("Analytics write failed\n");
+    return;
+  }
+  char writedata[500];
+  snprintf(writedata,sizeof(writedata)," ------ Exam Analytics ------\n"
+  "Total Students : %d\n"
+  "Passed : %d\n"
+  "Failed : %d\n"
+  "Cheated : %d\n"
+  "TimeOUT : %d\n"
+  "Highes Score (STUDENT-ID, SCORE) : (%d , %.1f)\n"
+  "Average Score : %.1f\n"
+  "Lowest Score : %.1f\n",MAXSTUDENTS,passed,failed,cheated,timedout,highestID,highestscore,scoreavg,lowest); 
+  write(fdAna,writedata,strlen(writedata));
+
+  close(fdAna);
+  logEvent("Analytics Generated\n");
+}
 int main(){
   srand(time(NULL));
   printf("System is Starting\n");
