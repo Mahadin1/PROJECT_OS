@@ -183,7 +183,38 @@ void* dashboard(void* arg){
   return NULL;
 }
 
+void* autoSave(void *arg){
+  while(autoSaveActive){
 
+    sleep(AUTOSAVEROUTINE);
+    time_t now = time(NULL);
+    struct tm *t = localtime(&now);
+    char buffer[32];
+    strftime(buffer, sizeof(buffer) , "%Y-%m-%d %H:%M:%S", t);
+    //AS -> autoSave
+    int fdAS = open("autoSave.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if(fdAS < 0){
+      printf("Auto Save Fails\n");
+      continue;
+    }
+
+    pthread_mutex_lock(&resultLock);
+    char msg[100];
+    snprintf(msg,sizeof(msg),"AUTOSAVE , DATE AND TIME  : %s\n",buffer);
+    write(fdAS,msg,strlen(msg));
+
+    for(int i =0;i< resultCount;i++){
+      char status[10];
+      strcpy(status, studentResults[i].cheated  ? "CHEATED"  :studentResults[i].timeOut  ? "TIMED OUT": "PASSED");
+      snprintf(msg,sizeof(msg),"Student %d | score : %.1f | graded : %d | Status : %s\n",studentResults[i].studentID,studentResults[i].score,studentResults[i].graded,status);
+      write(fdAS,msg,strlen(msg));
+    }
+    pthread_mutex_unlock(&resultLock);
+    close(fdAS);
+    logEvent("AutoSave Done");
+  }
+  return NULL;
+}
 int main(){
   srand(time(NULL));
   printf("System is Starting\n");
