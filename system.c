@@ -59,37 +59,59 @@ void logEvent(char *msg){
 }
 // student thread
 void* std_thread(void* arg){
-
   Student s = *(Student *)arg;
   char msg[100];
   time_t startTime  = time(NULL);
   sleep(rand() % MAXSTUDENTEXAMTIME);
   time_t endTime = time(NULL);
   double examtimetaken = difftime(endTime,startTime);
+  double finalScore = 0;
+  int cheated = 0;
+  int copyFrom = -1;
+  int timeOut = 0;
+  if(examtimetaken <= EXAMTIMELIMIT){
+    timeOut = 0;
+    finalScore = s.score;
+  }else{
+    int cheatFlag = rand() % 2;
+    if(cheatFlag == 1){
+      pthread_mutex_lock(&submissionLock);
+      if(submissionCount > 0){
+        int from = rand() % submissionCount;
+        finalScore = submissionQueue[from].score;
+        copyFrom = submissionQueue[from].studentID;
+        cheated = 1;
+      }else{
+        finalScore = 0;
+        timeOut = 1;
+      }
+      pthread_mutex_unlock(&submissionLock);
+    }else{
+      finalScore = 0;
+      timeOut = 1;
+    }
+  }
+  if(timeOut == 1){
+    snprintf(msg,sizeof(msg), "Student %d Exam , CAUSE | TIMEOUT | time: %.1fs",s.studentID,examtimetaken);
+  }else{
+    snprintf(msg,sizeof(msg), "Student %d submitted the Exam in time %.1fs",s.studentID,examtimetaken);
+  }
+  logEvent(msg);
+  // printf("%s\n",msg);
   pthread_mutex_lock(&submissionLock);
   submissionQueue[submissionCount].studentID = s.studentID;
   submissionQueue[submissionCount].graded = 0;
   submissionQueue[submissionCount].timeTaken = examtimetaken;
-  if(examtimetaken > EXAMTIMELIMIT){
-    submissionQueue[submissionCount].timeOut = 1;
-    submissionQueue[submissionCount].score = 0; 
-    snprintf(msg,sizeof(msg), "Student %d TIMEOUT After %.1fs",s.studentID,examtimetaken);
-    logEvent(msg);
-    printf("%s\n",msg);
-    printf("Student Exam time out.\n");
-  }
-  else{
-    submissionQueue[submissionCount].timeOut = 0;
-    submissionQueue[submissionCount].score = s.score;
-    snprintf(msg,sizeof(msg), "Student %d submitted the Exam in time %.1fs",s.studentID,examtimetaken);
-    logEvent(msg);
-    printf("%s\n",msg);
-  }
+  submissionQueue[submissionCount].score = finalScore;
+  submissionQueue[submissionCount].cheated = cheated;
+  submissionQueue[submissionCount].cheatedFrom = copyFrom; 
+  submissionQueue[submissionCount].timeOut = timeOut;
+  totalSubmitted++;
   submissionCount++;
   pthread_cond_signal(&submissionCondition);
   pthread_mutex_unlock(&submissionLock); 
-  
   return NULL;
+}
 }
 void* eva_thread(void* arg){
   Evaluator e = *(Evaluator *)arg;
