@@ -317,12 +317,14 @@ void genAnalytics(){
 int main(){
   srand(time(NULL));
   printf("System is Starting\n");
+// Initlializing all the dataute
   pthread_mutex_init(&examLock,NULL);
   pthread_mutex_init(&resultLock,NULL);
   pthread_mutex_init(&logLock,NULL);
   sem_init(&gradingLimit,0,MAXEVALUATORLIMIT);
   pthread_mutex_init(&submissionLock,NULL);
   pthread_cond_init(&submissionCondition,NULL);
+  examStartTime = time(NULL);
 
   logFd = open("examRecords.txt", O_WRONLY | O_CREAT | O_APPEND , 0644);
   if(logFd < 0){
@@ -330,15 +332,14 @@ int main(){
     return -1;
   }
 
+  pthread_t dashboardThread;
+  pthread_create(&dashboardThread,NULL,dashboard,NULL);
   pthread_t autoSaveThread;
   pthread_create(&autoSaveThread,NULL,autoSave,NULL);
-
-
   Student s[MAXSTUDENTS];
   Evaluator e[MAXEVALUATOR];
   pthread_t std_t[MAXSTUDENTS];
   pthread_t eva_t[MAXEVALUATOR];
-
 
 // Student working in main
   for(int i =0 ;i<MAXSTUDENTS;i++){
@@ -369,15 +370,28 @@ int main(){
 
   autoSaveActive = 0;
   pthread_join(autoSaveThread, NULL);
+  pthread_join(dashboardThread, NULL);
+  dashboardLive = 0;
+  genAnalytics();
+// ===== PRINT ALL RESULTS =====
   printf("\n--- Submitted Results ---\n");
     for(int i = 0; i < resultCount; i++){
-      printf("Student %d | Score: %.2f | Graded: %d\n",
-        studentResults[i].studentID,
-        studentResults[i].score,
-        studentResults[i].graded);
+    printf("Student %d      | Score: %.2f     | Time: %.1fs | %s\n",
+    studentResults[i].studentID,
+    studentResults[i].score,
+    studentResults[i].timeTaken,
+    studentResults[i].cheated  ? "CHEATED"  :
+    studentResults[i].timeOut  ? "TIMED OUT": "HONEST");
     }
 
+  logEvent("End Exam");
+  close(logFd);
 
+  pthread_mutex_destroy(&logLock);
+  pthread_mutex_destroy(&examLock);
+  pthread_mutex_destroy(&submissionLock);
+  pthread_cond_destroy(&submissionCondition);
+  sem_destroy(&gradingLimit);
   pthread_mutex_destroy(&resultLock);
   return 0;
 }
