@@ -9,8 +9,8 @@
 #include<sys/stat.h>
 #include<sys/types.h>
 
-#define MAXSTUDENTS 5
-#define MAXEVALUATORLIMIT 2
+#define MAXSTUDENTS 100
+#define MAXEVALUATORLIMIT 20
 #define MAXEVALUATOR 4
 #define EXAMTIMELIMIT 3 
 #define MAXSTUDENTEXAMTIME 7
