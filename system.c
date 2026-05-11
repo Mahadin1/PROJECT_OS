@@ -107,19 +107,21 @@ void* eva_thread(void* arg){
     submissionCount--;
     Result r = submissionQueue[submissionCount];
     pthread_mutex_unlock(&submissionLock);
-    
-    snprintf(msg,sizeof(msg),"Evaluator %d is grading student %d\n",e.evaluatorID,r.studentID);
+    snprintf(msg,sizeof(msg),"Evaluator %d is grading student %d",e.evaluatorID,r.studentID);
+    // printf("%s\n",msg);
     logEvent(msg);
     if(r.timeOut == 1){
       pthread_mutex_lock(&resultLock);
-      studentResults[resultCount].graded = 1;
+      studentResults[resultCount].graded = 0;
       studentResults[resultCount].studentID = r.studentID;
       studentResults[resultCount].score = 0;
       studentResults[resultCount].timeOut = r.timeOut;
       studentResults[resultCount].timeTaken = r.timeTaken;
       resultCount++;
       pthread_mutex_unlock(&resultLock);
-      snprintf(msg,sizeof(msg),"Evalator %d did not evalute student (TIMEOUT) %d",e.evaluatorID,r.studentID);
+      timeoutCount++;
+      snprintf(msg,sizeof(msg),"Evalator %d did not evalute student %d |TIMEOUT|",e.evaluatorID,r.studentID);
+      // printf("%s\n",msg);
       logEvent(msg);
     }else{
     sem_wait(&gradingLimit);
@@ -127,19 +129,61 @@ void* eva_thread(void* arg){
   pthread_mutex_lock(&resultLock);
   studentResults[resultCount].graded = 1;
   studentResults[resultCount].studentID = r.studentID;
-  studentResults[resultCount].score = r.score;
+  studentResults[resultCount].score = r.cheated  == 1 ? 0.0 : r.score;
   studentResults[resultCount].timeOut = r.timeOut;
   studentResults[resultCount].timeTaken = r.timeTaken;
+  studentResults[resultCount].cheated = r.cheated;
+  studentResults[resultCount].cheatedFrom = r.cheatedFrom;
   // studentResults[e.studentID].score = (rand() % 100); 
   resultCount++;
-  snprintf(msg,sizeof(msg),"Evalator %d evaluated student %d",e.evaluatorID,r.studentID);
+  if(r.cheated == 1){
+    cheatedCount++;
+    snprintf(msg,sizeof(msg),"Evalator %d Fails student %d Because of Cheating",e.evaluatorID,r.studentID);
+  }else{
+    snprintf(msg,sizeof(msg),"Evalator %d evaluated student %d",e.evaluatorID,r.studentID);
+  }
+  // printf("%s\n",msg);
   logEvent(msg);
   pthread_mutex_unlock(&resultLock);
   sem_post(&gradingLimit);
 }
 }
   return NULL;
+} 
+
+void* dashboard(void* arg){
+  while(1){
+    system("clear");
+
+    time_t now = time(NULL);
+    double timepassed = difftime(now, examStartTime);
+    int n = 0;
+    sem_getvalue(&gradingLimit,&n);
+    int currentGrading = MAXEVALUATORLIMIT - n;
+    
+
+    printf("    ======= LIVE DASHBOARD =======          \n");
+    printf("          LIVE EXAM SITUATION    \n");
+    printf(" ==========================================\n");
+
+    printf("Student Submitted : %d / %d\n",totalSubmitted,MAXSTUDENTS);
+    printf("Student Graded    : %d / %d\n",resultCount,MAXSTUDENTS);
+    printf("Time OUT          : %d\n",timeoutCount);
+    printf("Cheater Caught    : %d\n",cheatedCount);
+    printf("Currently Grading : %d\n",currentGrading);
+    printf("--------------------------------------------\n");
+    printf("TIME PASSED : %.0f\n",timepassed);
+    printf("--------------------------------------------\n\n");
+
+    if(resultCount >= MAXSTUDENTS){
+      break;
+    }
+    sleep(1);
+  }
+  return NULL;
 }
+
+
 int main(){
   srand(time(NULL));
   printf("System is Starting\n");
