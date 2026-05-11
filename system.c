@@ -9,9 +9,9 @@
 #include<sys/stat.h>
 #include<sys/types.h>
 // data definitions
-#define MAXSTUDENTS 1000
-#define MAXEVALUATORLIMIT 50
-#define MAXEVALUATOR 15
+#define MAXSTUDENTS 50
+#define MAXEVALUATORLIMIT 5
+#define MAXEVALUATOR 20
 #define EXAMTIMELIMIT 3 
 #define MAXSTUDENTEXAMTIME 7
 #define AUTOSAVEROUTINE 2
@@ -35,20 +35,25 @@ typedef struct{
 typedef struct {
   int evaluatorID;
 } Evaluator;
-//Shared Values
+//shared/global values
 pthread_mutex_t resultLock;
 pthread_mutex_t submissionLock;
 pthread_mutex_t examLock;
 pthread_cond_t submissionCondition;
 sem_t gradingLimit;
 Result studentResults[MAXSTUDENTS];
-int resultCount = 0;
-pthread_mutex_t resultLock;
 Result submissionQueue[MAXSTUDENTS];
+int resultCount =0;
 int submissionCount = 0;
 int examOver = 0;
 int logFd;
 pthread_mutex_t logLock;
+int autoSaveActive = 1;
+int dashboardLive = 1;
+time_t examStartTime;
+int cheatedCount = 0;
+int timeoutCount = 0;
+int totalSubmitted = 0;
 
 void logEvent(char *msg){
   time_t now = time(NULL);
@@ -62,6 +67,41 @@ void logEvent(char *msg){
   write(logFd,logLine,strlen(logLine));
   pthread_mutex_unlock(&logLock);
 }
+//thread functions
+
+void* autoSave(void *arg){
+  while(autoSaveActive){
+
+    sleep(AUTOSAVEROUTINE);
+    time_t now = time(NULL);
+    struct tm *t = localtime(&now);
+    char buffer[32];
+    strftime(buffer, sizeof(buffer) , "%Y-%m-%d %H:%M:%S", t);
+    //AS -> autoSave
+    int fdAS = open("autoSave.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if(fdAS < 0){
+      printf("Auto Save Fails\n");
+      continue;
+    }
+
+    pthread_mutex_lock(&resultLock);
+    char msg[100];
+    snprintf(msg,sizeof(msg),"AUTOSAVE , DATE AND TIME  : %s\n",buffer);
+    write(fdAS,msg,strlen(msg));
+
+    for(int i =0;i< resultCount;i++){
+      char status[10];
+      strcpy(status, studentResults[i].cheated  ? "CHEATED"  :studentResults[i].timeOut  ? "TIMED OUT": "PASSED");
+      snprintf(msg,sizeof(msg),"Student %d | score : %.1f | graded : %d | Status : %s\n",studentResults[i].studentID,studentResults[i].score,studentResults[i].graded,status);
+      write(fdAS,msg,strlen(msg));
+    }
+    pthread_mutex_unlock(&resultLock);
+    close(fdAS);
+    logEvent("AutoSave Done");
+  }
+  return NULL;
+}
+
 // student thread
 void* std_thread(void* arg){
   Student s = *(Student *)arg;
@@ -97,7 +137,7 @@ void* std_thread(void* arg){
     }
   }
   if(timeOut == 1){
-    snprintf(msg,sizeof(msg), "Student %d Exam , CAUSE | TIMEOUT | time: %.1fs",s.studentID,examtimetaken);
+    snprintf(msg,sizeof(msg), "Student %d Exam OVER, CAUSE | TIMEOUT | time: %.1fs",s.studentID,examtimetaken);
   }else{
     snprintf(msg,sizeof(msg), "Student %d submitted the Exam in time %.1fs",s.studentID,examtimetaken);
   }
@@ -117,7 +157,7 @@ void* std_thread(void* arg){
   pthread_mutex_unlock(&submissionLock); 
   return NULL;
 }
-}
+//evaluator thread
 void* eva_thread(void* arg){
   Evaluator e = *(Evaluator *)arg;
   int over;
@@ -176,72 +216,8 @@ void* eva_thread(void* arg){
 }
 }
   return NULL;
-} 
-
-void* dashboard(void* arg){
-  while(1){
-    system("clear");
-
-    time_t now = time(NULL);
-    double timepassed = difftime(now, examStartTime);
-    int n = 0;
-    sem_getvalue(&gradingLimit,&n);
-    int currentGrading = MAXEVALUATORLIMIT - n;
-    
-
-    printf("    ======= LIVE DASHBOARD =======          \n");
-    printf("          LIVE EXAM SITUATION    \n");
-    printf(" ==========================================\n");
-
-    printf("Student Submitted : %d / %d\n",totalSubmitted,MAXSTUDENTS);
-    printf("Student Graded    : %d / %d\n",resultCount,MAXSTUDENTS);
-    printf("Time OUT          : %d\n",timeoutCount);
-    printf("Cheater Caught    : %d\n",cheatedCount);
-    printf("Currently Grading : %d\n",currentGrading);
-    printf("--------------------------------------------\n");
-    printf("TIME PASSED : %.0f\n",timepassed);
-    printf("--------------------------------------------\n\n");
-
-    if(resultCount >= MAXSTUDENTS){
-      break;
-    }
-    sleep(1);
-  }
-  return NULL;
 }
 
-void* autoSave(void *arg){
-  while(autoSaveActive){
-
-    sleep(AUTOSAVEROUTINE);
-    time_t now = time(NULL);
-    struct tm *t = localtime(&now);
-    char buffer[32];
-    strftime(buffer, sizeof(buffer) , "%Y-%m-%d %H:%M:%S", t);
-    //AS -> autoSave
-    int fdAS = open("autoSave.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if(fdAS < 0){
-      printf("Auto Save Fails\n");
-      continue;
-    }
-
-    pthread_mutex_lock(&resultLock);
-    char msg[100];
-    snprintf(msg,sizeof(msg),"AUTOSAVE , DATE AND TIME  : %s\n",buffer);
-    write(fdAS,msg,strlen(msg));
-
-    for(int i =0;i< resultCount;i++){
-      char status[10];
-      strcpy(status, studentResults[i].cheated  ? "CHEATED"  :studentResults[i].timeOut  ? "TIMED OUT": "PASSED");
-      snprintf(msg,sizeof(msg),"Student %d | score : %.1f | graded : %d | Status : %s\n",studentResults[i].studentID,studentResults[i].score,studentResults[i].graded,status);
-      write(fdAS,msg,strlen(msg));
-    }
-    pthread_mutex_unlock(&resultLock);
-    close(fdAS);
-    logEvent("AutoSave Done");
-  }
-  return NULL;
-}
 void genAnalytics(){
   int passed = 0;
   int failed = 0;
@@ -319,9 +295,42 @@ void genAnalytics(){
   close(fdAna);
   logEvent("Analytics Generated\n");
 }
+void* dashboard(void* arg){
+  while(1){
+    system("clear");
+
+    time_t now = time(NULL);
+    double timepassed = difftime(now, examStartTime);
+    int n = 0;
+    sem_getvalue(&gradingLimit,&n);
+    int currentGrading = MAXEVALUATORLIMIT - n;
+    
+
+    printf("    ======= LIVE DASHBOARD =======          \n");
+    printf("          LIVE EXAM SITUATION    \n");
+    printf(" ==========================================\n");
+
+    printf("Student Submitted : %d / %d\n",totalSubmitted,MAXSTUDENTS);
+    printf("Student Graded    : %d / %d\n",resultCount,MAXSTUDENTS);
+    printf("Time OUT          : %d\n",timeoutCount);
+    printf("Cheater Caught    : %d\n",cheatedCount);
+    printf("Currently Grading : %d\n",currentGrading);
+    printf("--------------------------------------------\n");
+    printf("TIME PASSED : %.0f\n",timepassed);
+    printf("--------------------------------------------\n\n");
+
+    if(resultCount >= MAXSTUDENTS){
+      break;
+    }
+    sleep(1);
+  }
+  return NULL;
+}
+
 int main(){
   srand(time(NULL));
   printf("System is Starting\n");
+
 // Initlializing all the dataute
   pthread_mutex_init(&examLock,NULL);
   pthread_mutex_init(&resultLock,NULL);
@@ -331,7 +340,7 @@ int main(){
   pthread_cond_init(&submissionCondition,NULL);
   examStartTime = time(NULL);
 
-  logFd = open("examRecords.txt", O_WRONLY | O_CREAT | O_APPEND , 0644);
+  logFd = open("examRecords.txt", O_WRONLY | O_CREAT | O_APPEND | O_TRUNC , 0644);
   if(logFd < 0){
     printf("Error , File Open Failed\n");
     return -1;
@@ -345,11 +354,13 @@ int main(){
   Evaluator e[MAXEVALUATOR];
   pthread_t std_t[MAXSTUDENTS];
   pthread_t eva_t[MAXEVALUATOR];
-
 // Student working in main
   for(int i =0 ;i<MAXSTUDENTS;i++){
     s[i].studentID = i;
     s[i].score = ((rand() % 10000) / 100.00);
+  }
+
+  for(int i=0;i<MAXEVALUATOR;i++){
     e[i].evaluatorID = i;
   }
 
@@ -389,7 +400,7 @@ int main(){
     studentResults[i].timeOut  ? "TIMED OUT": "HONEST");
     }
 
-  logEvent("End Exam");
+  logEvent("End Exam\n");
   close(logFd);
 
   pthread_mutex_destroy(&logLock);
