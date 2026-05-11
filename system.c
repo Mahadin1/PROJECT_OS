@@ -1,20 +1,21 @@
 #include<stdio.h>
 #include<stdlib.h>
+#include<unistd.h>
 #include<pthread.h>
-#include<time.h>
 #include<semaphore.h>
 #include<time.h>
 #include<string.h>
 #include<fcntl.h>
 #include<sys/stat.h>
 #include<sys/types.h>
-
-#define MAXSTUDENTS 100
-#define MAXEVALUATORLIMIT 5
-#define MAXEVALUATOR 20
+// data definitions
+#define MAXSTUDENTS 1000
+#define MAXEVALUATORLIMIT 50
+#define MAXEVALUATOR 15
 #define EXAMTIMELIMIT 3 
 #define MAXSTUDENTEXAMTIME 7
-
+#define AUTOSAVEROUTINE 2
+// #define DASHBOARDREFRESHTIME 2
 // structures
 typedef struct {
 int studentID;
@@ -27,9 +28,13 @@ typedef struct{
   int graded;
   int timeOut;
   double timeTaken;
+  int cheated;
+  int cheatedFrom;
 } Result;
 
-
+typedef struct {
+  int evaluatorID;
+} Evaluator;
 //Shared Values
 pthread_mutex_t resultLock;
 pthread_mutex_t submissionLock;
